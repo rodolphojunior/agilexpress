@@ -1,6 +1,14 @@
+import 'dart:convert';
+
+import 'package:localstorage/localstorage.dart';
 import 'package:flutter/material.dart';
 
-void main() {
+final LocalStorage storage = LocalStorage('my_app');
+
+void main() async {
+  final LocalStorage storage = LocalStorage('agilexpress');
+  await storage.ready;
+
   runApp(const MyApp());
 }
 
@@ -25,11 +33,27 @@ class BacklogItem {
   String title;
   String description;
 
-  BacklogItem(this.title, this.description);
+  BacklogItem({required this.title, required this.description});
+
+  // Transforma o objeto em JSON para facilitar o armazenamento
+  Map<String, dynamic> toJson() => {
+        'title': title,
+        'description': description,
+      };
+
+  factory BacklogItem.fromJson(Map<String, dynamic> json) {
+    return BacklogItem(
+      title: json['title'] as String,
+      description: json['description'] as String,
+    );
+  }
 }
 
+BacklogItem titleDescription =
+    BacklogItem(title: 'Your title', description: 'Your description');
+
 class BacklogPage extends StatefulWidget {
-  const BacklogPage({super.key});
+  const BacklogPage({Key? key}) : super(key: key);
 
   @override
   // ignore: library_private_types_in_public_api
@@ -37,20 +61,25 @@ class BacklogPage extends StatefulWidget {
 }
 
 class _BacklogPageState extends State<BacklogPage> {
-  final List<BacklogItem> backlogItems = [
-    BacklogItem('História 1', 'Descrição da história 1'),
-    BacklogItem('História 2', 'Descrição da história 2'),
-    BacklogItem('História 3', 'Descrição da história 3'),
-    BacklogItem('História 4', 'Descrição da história 4'),
-    BacklogItem('História 5', 'Descrição da história 5'),
-    BacklogItem('História 6', 'Descrição da história 6'),
-    BacklogItem('História 7', 'Descrição da história 7'),
-    BacklogItem('História 8', 'Descrição da história 8'),
-    BacklogItem('História 9', 'Descrição da história 9'),
-    BacklogItem('História 10', 'Descrição da história 10'),
-    BacklogItem('História 11', 'Descrição da história 11'),
-    BacklogItem('História 12', 'Descrição da história 12'),
-  ];
+  List<BacklogItem> backlogItems = [];
+
+  void loadBacklogItems() {
+    List<dynamic> backlogJson = json.decode(storage.getItem('backlog') ?? '[]');
+    backlogItems = backlogJson
+        .map((i) => BacklogItem.fromJson(Map<String, dynamic>.from(i)))
+        .toList();
+  }
+
+  void saveBacklogItems() {
+    storage.setItem(
+        'backlog', json.encode(backlogItems.map((i) => i.toJson()).toList()));
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    loadBacklogItems();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +121,7 @@ class _BacklogPageState extends State<BacklogPage> {
     );
   }
 
-// function to show a dialog for adding or editing an item
+  // function to show a dialog for adding or editing an item
   Future<void> _showAddEditDialog(BuildContext context,
       [BacklogItem? item]) async {
     final formKey = GlobalKey<FormState>();
@@ -150,16 +179,25 @@ class _BacklogPageState extends State<BacklogPage> {
                   if (item == null) {
                     // add new item
                     setState(() {
-                      backlogItems.add(BacklogItem(itemTitleController.text,
-                          itemDescriptionController.text));
+                      backlogItems.add(BacklogItem(
+                          title: itemTitleController.text,
+                          description: itemDescriptionController.text));
                     });
                   } else {
                     // edit existing item
                     setState(() {
-                      item.title = itemTitleController.text;
-                      item.description = itemDescriptionController.text;
+                      int itemIndex = backlogItems.indexWhere((i) => i == item);
+                      if (itemIndex != -1) {
+                        backlogItems[itemIndex].title =
+                            itemTitleController.text;
+                        backlogItems[itemIndex].description =
+                            itemDescriptionController.text;
+                      }
+                      saveBacklogItems();
+                      print(backlogItems);
                     });
                   }
+
                   Navigator.of(context).pop();
                 }
               },
